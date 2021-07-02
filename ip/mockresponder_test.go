@@ -4,13 +4,14 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"github.com/malc0mn/ptp-ip/ip/internal"
-	"github.com/malc0mn/ptp-ip/ptp"
 	"io"
 	"log"
 	"net"
 	"os"
 	"testing"
+
+	"github.com/malc0mn/ptp-ip/ip/internal"
+	"github.com/malc0mn/ptp-ip/ptp"
 )
 
 const MockResponderGUID string = "3e8626cc-5059-4225-bdd6-d160b2e6a60f"
@@ -60,7 +61,7 @@ func runResponder(vendor ptp.VendorExtension, address string, ports []uint16, ha
 	}
 
 	evtChan := make(chan uint32, 10)
-	for i, _ := range mr.handlers {
+	for i := range mr.handlers {
 		go mr.run(i, evtChan)
 	}
 }

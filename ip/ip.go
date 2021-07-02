@@ -5,9 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/malc0mn/ptp-ip/ip/internal"
-	"github.com/malc0mn/ptp-ip/ptp"
 	"io"
 	"log"
 	"net"
@@ -15,6 +12,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/malc0mn/ptp-ip/ip/internal"
+	"github.com/malc0mn/ptp-ip/ptp"
 )
 
 const (
@@ -342,6 +343,8 @@ func (c *Client) SendPacketToEventConn(p PacketOut) error {
 
 // We write directly to the connection here without using bufio. The Payload() method and marshaling functions are
 // already writing to a bytes buffer before we write to the connection.
+// We write directly to the connection here without using bufio. The Payload() method and marshaling functions are
+// already writing to a bytes buffer before we write to the connection.
 func (c *Client) sendPacket(w io.Writer, p PacketOut) error {
 	if w == nil {
 		return NotConnectedError
@@ -353,7 +356,7 @@ func (c *Client) sendPacket(w io.Writer, p PacketOut) error {
 
 	pl := p.Payload()
 	pll := len(pl)
-
+	var headerPayload []byte
 	// An invalid packet type means it does not adhere to the PTP/IP standard, so we only send the length field here.
 	if p.PacketType() == PKT_Invalid {
 		// Send length only. The length must include the size of the length field, so we add 4 bytes for that!
@@ -363,16 +366,25 @@ func (c *Client) sendPacket(w io.Writer, p PacketOut) error {
 	} else {
 		// The packet length MUST include the header, so we add 8 bytes for that!
 		h := internal.MarshalLittleEndian(Header{uint32(pll + HeaderSize), p.PacketType()})
+		for i := 0; i < len(h); i++ {
+			headerPayload = append(headerPayload, h[i])
+		}
 
 		// Send header.
-		n, err := w.Write(h)
-		if err != nil {
-			return err
-		}
-		if n != HeaderSize {
-			return fmt.Errorf(BytesWrittenMismatch, n, HeaderSize)
-		}
-		c.Debugf("[sendPacket] header bytes written %d", n)
+
+		// n, err := w.Write(h)
+		// if err != nil {
+		// 	return err
+		// }
+		// if n != HeaderSize {
+		// 	return fmt.Errorf(BytesWrittenMismatch, n, HeaderSize)
+		// }
+		// c.Debugf("[sendPacket] header bytes written %d", n)
+		// var dataStringHeader string
+		// for i := 0; i < len(h); i++ {
+		// 	dataStringHeader += fmt.Sprintf("%x ", h[i])
+		// }
+		// c.Debugf("[sendPacket] HEADER %s", dataStringHeader)
 	}
 
 	// Send payload.
@@ -380,8 +392,11 @@ func (c *Client) sendPacket(w io.Writer, p PacketOut) error {
 		c.Debugf("[sendPacket] packet has no payload")
 		return nil
 	}
-
-	n, err := w.Write(pl)
+	for i := 0; i < len(pl); i++ {
+		headerPayload = append(headerPayload, pl[i])
+	}
+	pll = len(headerPayload)
+	n, err := w.Write(headerPayload)
 	if err != nil {
 		return err
 	}
@@ -389,6 +404,13 @@ func (c *Client) sendPacket(w io.Writer, p PacketOut) error {
 		return fmt.Errorf(BytesWrittenMismatch, n, pll)
 	}
 	c.Debugf("[sendPacket] payload bytes written %d", n)
+	// var pay string
+
+	var dataString string
+	for i := 0; i < len(pl); i++ {
+		dataString += fmt.Sprintf("%x ", pl[i])
+	}
+	c.Debugf("[sendPacket] payload %s", dataString)
 
 	return nil
 }
