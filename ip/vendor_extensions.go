@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+
 	"github.com/google/uuid"
 	"github.com/malc0mn/ptp-ip/ip/internal"
 	"github.com/malc0mn/ptp-ip/ptp"
@@ -260,8 +261,16 @@ func GenericOperationRequestRaw(c *Client, code ptp.OperationCode, params []uint
 		return nil, err
 	}
 
+	// var raw [][]byte
+	// raw[0], err = c.WaitForRawPacketFromCommandDataSubscriber(resCh)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
 	var raw [][]byte
-	raw[0], err = c.WaitForRawPacketFromCommandDataSubscriber(resCh)
+	// raw[0], err = c.WaitForRawPacketFromCommandDataSubscriber(resCh)
+	data, err := c.WaitForRawPacketFromCommandDataSubscriber(resCh)
+	raw = append(raw, data)
 	if err != nil {
 		return nil, err
 	}
