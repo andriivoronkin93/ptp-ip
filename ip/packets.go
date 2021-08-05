@@ -296,7 +296,6 @@ type EventParameters struct {
 // Initiator about the Responder state change.
 type GenericEventPacket struct {
 	ptp.Event
-	Parameter1 []byte
 }
 
 func (ep *GenericEventPacket) PacketType() PacketType {
@@ -309,10 +308,6 @@ func (ep *GenericEventPacket) TotalFixedFieldSize() int {
 
 func (ep *GenericEventPacket) GetEventCode() ptp.EventCode {
 	return ep.EventCode
-}
-
-func (ep *GenericEventPacket) GetParameter1() []byte {
-	return ep.Parameter1
 }
 
 func NewEventPacket() EventPacket {
@@ -370,9 +365,7 @@ func (dp *DataPacket) TotalFixedFieldSize() int {
 // from the Initiator to the Responder.
 type EndDataPacket struct {
 	TransactionId ptp.TransactionID
-	// DataPayload   interface{}
-	DataPayload []byte
-	// DataPayload []uint32
+	DataPayload   []byte
 }
 
 func (edp *EndDataPacket) PacketType() PacketType {

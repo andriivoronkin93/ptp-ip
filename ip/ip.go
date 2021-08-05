@@ -55,6 +55,20 @@ func NewDefaultInitiator() (*Initiator, error) {
 	return NewInitiator("", "")
 }
 
+func printHex(data []byte) {
+	var buf string
+	if len(data) == 0 {
+		fmt.Print("Error : Get data 0\n")
+		return
+	}
+	buf += "Recive : "
+	for i := 0; i < len(data); i++ {
+		buf += fmt.Sprintf("%2x", data[i])
+	}
+	buf += "\n"
+	fmt.Print(buf)
+}
+
 // NewInitiator creates a new Initiator with a friendlyName and GUID of your choosing.
 // Passing an empty string as friendlyName will result in InitiatorFriendlyName being used.
 func NewInitiator(friendlyName, guid string) (*Initiator, error) {
@@ -361,6 +375,7 @@ func (c *Client) sendPacket(w io.Writer, p PacketOut) error {
 	var headerPayload []byte
 	// An invalid packet type means it does not adhere to the PTP/IP standard, so we only send the length field here.
 	if p.PacketType() == PKT_Invalid {
+		// Send length only. The length must include the size of the length field, so we add 4 bytes for that!
 		if _, err := w.Write(internal.MarshalLittleEndian(uint32(pll + 4))); err != nil {
 			return err
 		}
