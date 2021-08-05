@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
+
 	ptpfmt "github.com/malc0mn/ptp-ip/fmt"
 	"github.com/malc0mn/ptp-ip/ip"
 	"github.com/malc0mn/ptp-ip/ptp"
@@ -49,10 +50,10 @@ func (opreq) execute(c *ip.Client, f []string, _ chan<- string) string {
 		return fmt.Sprintf(errorFmt, err)
 	}
 
-	for _, raw := range d {
-		res += fmt.Sprintf("\nReceived %d bytes. HEX dump:\n%s", len(raw), hex.Dump(raw))
-	}
-
+	// for _, raw := range d {
+	// 	res += fmt.Sprintf("\nReceived %d bytes. HEX dump:\n%s", len(d), hex.Dump(d))
+	// }
+	res += fmt.Sprintf("\nReceived %d bytes. HEX dump:\n%s", len(d), hex.Dump(d))
 	return res
 }
 

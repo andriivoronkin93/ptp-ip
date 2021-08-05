@@ -5,11 +5,12 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/malc0mn/ptp-ip/ip/internal"
 	"github.com/malc0mn/ptp-ip/ptp"
-	"io"
-	"time"
 )
 
 type FujiBatteryLevel uint16
@@ -424,9 +425,9 @@ func (fep *FujiEventPacket) TotalFixedFieldSize() int {
 	return internal.TotalSizeOfFixedFields(fep)
 }
 
-func NewFujiEventPacket() EventPacket {
-	return &FujiEventPacket{}
-}
+// func NewFujiEventPacket() EventPacket {
+// 	return &FujiEventPacket{}
+// }
 
 // FujiExtractTransactionId extracts the transaction ID from a full raw inbound packet. This packet must include the
 // full header containing length and packet type.
@@ -929,7 +930,7 @@ func FujiInitiateCapture(c *Client) ([]byte, error) {
 	invalidEvent := "invalid event received, expected '%#x' got '%#x'"
 	for _, ec := range []ptp.EventCode{EC_Fuji_ObjectAdded, EC_Fuji_PreviewAvailable} {
 		select {
-		case msg := <-c.eventChan:
+		case msg := <-c.EventChan:
 			if msg.GetEventCode() != ec {
 				return nil, fmt.Errorf(invalidEvent, ec, msg.GetEventCode())
 			}
@@ -940,7 +941,7 @@ func FujiInitiateCapture(c *Client) ([]byte, error) {
 				txt = "object added"
 			case EC_Fuji_PreviewAvailable:
 				txt = "preview available"
-				pvSize = int(msg.(*FujiEventPacket).Parameter2)
+				// pvSize = int(msg.(*FujiEventPacket).Parameter2)
 				extra = fmt.Sprintf(": preview size is %d bytes", pvSize)
 			}
 			c.Debugf("Received %s event (%#x)%s.", txt, msg.GetEventCode(), extra)
@@ -955,7 +956,7 @@ func FujiInitiateCapture(c *Client) ([]byte, error) {
 	}
 
 	select {
-	case msg := <-c.eventChan:
+	case msg := <-c.EventChan:
 		if msg.GetEventCode() != ptp.EC_CaptureComplete {
 			return nil, fmt.Errorf("invalid event received, expected '%#x' got '%#x'", ptp.EC_CaptureComplete, msg.GetEventCode())
 		}

@@ -16,38 +16,42 @@ import (
 //  calls the initCommandDataConn() and initEventConn() methods but when using embedding the methods on ip.Client get
 //  called and not the ones on ip.FujiClient so you would also have to "override" the Dial() as well.
 type VendorExtensions struct {
-	cmdDataInit            func(*Client) error
-	eventInit              func(*Client) error
-	processStreamData      func(*Client) error
-	newCmdDataInitPacket   func(uuid.UUID, string) InitCommandRequestPacket
-	newEventInitPacket     func(uint32) InitEventRequestPacket
-	newEventPacket         func() EventPacket
-	extractTransactionId   func([]byte, connectionType) (ptp.TransactionID, error)
-	getDeviceInfo          func(*Client) (interface{}, error)
-	getDeviceState         func(*Client) (interface{}, error)
-	getDevicePropertyDesc  func(*Client, ptp.DevicePropCode) (*ptp.DevicePropDesc, error)
-	getDevicePropertyValue func(*Client, ptp.DevicePropCode) (uint32, error)
-	setDeviceProperty      func(*Client, ptp.DevicePropCode, uint32) error
-	operationRequestRaw    func(*Client, ptp.OperationCode, []uint32) ([][]byte, error)
-	initiateCapture        func(*Client) ([]byte, error)
+	cmdDataInit             func(*Client) error
+	eventInit               func(*Client) error
+	processStreamData       func(*Client) error
+	newCmdDataInitPacket    func(uuid.UUID, string) InitCommandRequestPacket
+	newEventInitPacket      func(uint32) InitEventRequestPacket
+	newEventPacket          func() EventPacket
+	extractTransactionId    func([]byte, connectionType) (ptp.TransactionID, error)
+	getDeviceInfo           func(*Client) (interface{}, error)
+	getDeviceState          func(*Client) (interface{}, error)
+	getDevicePropertyDesc   func(*Client, ptp.DevicePropCode) (*ptp.DevicePropDesc, error)
+	getDevicePropertyValue  func(*Client, ptp.DevicePropCode) (uint32, error)
+	setDeviceProperty       func(*Client, ptp.DevicePropCode, uint32) error
+	operationRequestRaw     func(*Client, ptp.OperationCode, []uint32) ([]byte, error)
+	operationDataRequestRaw func(*Client, ptp.OperationCode, []uint32) ([]byte, error)
+	initiateCapture         func(*Client) ([]byte, error)
+	sendData                func(*Client, ptp.OperationCode, []uint32, []byte, uint64) ([]byte, error)
 }
 
 func (c *Client) loadVendorExtensions() {
 	c.vendorExtensions = &VendorExtensions{
-		cmdDataInit:            GenericInitCommandDataConn,
-		eventInit:              GenericInitEventConn,
-		processStreamData:      GenericProcessStreamData,
-		newCmdDataInitPacket:   NewInitCommandRequestPacket,
-		newEventInitPacket:     NewInitEventRequestPacket,
-		newEventPacket:         NewEventPacket,
-		extractTransactionId:   GenericExtractTransactionId,
-		getDeviceInfo:          GenericGetDeviceInfo,
-		getDeviceState:         GenericGetDeviceState,
-		getDevicePropertyDesc:  GenericGetDevicePropertyDesc,
-		getDevicePropertyValue: GenericGetDevicePropertyValue,
-		setDeviceProperty:      GenericSetDeviceProperty,
-		operationRequestRaw:    GenericOperationRequestRaw,
-		initiateCapture:        GenericInitiateCapture,
+		cmdDataInit:             GenericInitCommandDataConn,
+		eventInit:               GenericInitEventConn,
+		processStreamData:       GenericProcessStreamData,
+		newCmdDataInitPacket:    NewInitCommandRequestPacket,
+		newEventInitPacket:      NewInitEventRequestPacket,
+		newEventPacket:          NewEventPacket,
+		extractTransactionId:    GenericExtractTransactionId,
+		getDeviceInfo:           GenericGetDeviceInfo,
+		getDeviceState:          GenericGetDeviceState,
+		getDevicePropertyDesc:   GenericGetDevicePropertyDesc,
+		getDevicePropertyValue:  GenericGetDevicePropertyValue,
+		setDeviceProperty:       GenericSetDeviceProperty,
+		operationRequestRaw:     GenericOperationRequestRaw,
+		operationDataRequestRaw: GenericOperationDataRequestRaw,
+		initiateCapture:         GenericInitiateCapture,
+		sendData:                GenericSendData,
 	}
 
 	switch c.ResponderVendor() {
@@ -56,14 +60,12 @@ func (c *Client) loadVendorExtensions() {
 		c.vendorExtensions.processStreamData = FujiProcessStreamData
 		c.vendorExtensions.newCmdDataInitPacket = NewFujiInitCommandRequestPacket
 		c.vendorExtensions.newEventInitPacket = NewFujiInitEventRequestPacket
-		c.vendorExtensions.newEventPacket = NewFujiEventPacket
 		c.vendorExtensions.extractTransactionId = FujiExtractTransactionId
 		c.vendorExtensions.getDeviceInfo = FujiGetDeviceInfo
 		c.vendorExtensions.getDeviceState = FujiGetDeviceState
 		c.vendorExtensions.getDevicePropertyDesc = FujiGetDevicePropertyDesc
 		c.vendorExtensions.getDevicePropertyValue = FujiGetDevicePropertyValue
 		c.vendorExtensions.setDeviceProperty = FujiSetDeviceProperty
-		c.vendorExtensions.operationRequestRaw = FujiSendOperationRequestAndGetRawResponse
 		c.vendorExtensions.initiateCapture = FujiInitiateCapture
 	}
 }
@@ -96,7 +98,7 @@ func GenericInitCommandDataConn(c *Client) error {
 	}
 
 	c.Infoln("Closing Command/Data connection!")
-	c.commandDataConn.Close()
+	c.CommandDataConn.Close()
 	return err
 }
 
@@ -221,7 +223,7 @@ func GenericSetDeviceProperty(c *Client, dpc ptp.DevicePropCode, val uint32) err
 	return errors.New("command not YET supported")
 }
 
-func GenericOperationRequestRaw(c *Client, code ptp.OperationCode, params []uint32) ([][]byte, error) {
+func GenericOperationRequestRaw(c *Client, code ptp.OperationCode, params []uint32) ([]byte, error) {
 	tid := c.incrementTransactionId()
 
 	or := ptp.OperationRequest{
@@ -229,8 +231,6 @@ func GenericOperationRequestRaw(c *Client, code ptp.OperationCode, params []uint
 		TransactionID: tid,
 	}
 
-	// TODO: how to eliminate this crazyness WITHOUT reflection? Rework the OperationRequest struct perhaps with a
-	//  [5]interface{} instead of 5 separate fields...?
 	if len(params) >= 1 {
 		or.Parameter1 = params[0]
 	}
@@ -250,7 +250,6 @@ func GenericOperationRequestRaw(c *Client, code ptp.OperationCode, params []uint
 	if err := c.subscribe(tid, resCh); err != nil {
 		return nil, err
 	}
-	defer c.unsubscribe(tid)
 
 	err := c.SendPacketToCmdDataConn(&OperationRequestPacket{
 		DataPhaseInfo:    DP_NoDataOrDataIn,
@@ -261,23 +260,137 @@ func GenericOperationRequestRaw(c *Client, code ptp.OperationCode, params []uint
 		return nil, err
 	}
 
-	// var raw [][]byte
-	// raw[0], err = c.WaitForRawPacketFromCommandDataSubscriber(resCh)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	var raw [][]byte
-	// raw[0], err = c.WaitForRawPacketFromCommandDataSubscriber(resCh)
 	data, err := c.WaitForRawPacketFromCommandDataSubscriber(resCh)
-	raw = append(raw, data)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: handle possible followup packets depending on the data phase returned.
+	return data, err
+}
 
-	return raw, err
+func addData(retBuff []byte, buff []byte) {
+	for _, element := range buff {
+		retBuff = append(retBuff, element)
+	}
+}
+
+func GenericOperationDataRequestRaw(c *Client, code ptp.OperationCode, params []uint32) ([]byte, error) {
+	tid := c.incrementTransactionId()
+
+	or := ptp.OperationRequest{
+		OperationCode: code,
+		TransactionID: tid,
+	}
+
+	if len(params) >= 1 {
+		or.Parameter1 = params[0]
+	}
+	if len(params) >= 2 {
+		or.Parameter2 = params[1]
+	}
+	if len(params) >= 3 {
+		or.Parameter3 = params[2]
+	}
+	if len(params) >= 4 {
+		or.Parameter4 = params[3]
+	}
+	if len(params) == 5 {
+		or.Parameter5 = params[4]
+	}
+	resCh := make(chan []byte, 2)
+	if err := c.subscribe(tid, resCh); err != nil {
+		return nil, err
+	}
+
+	err := c.SendPacketToCmdDataConn(&OperationRequestPacket{
+		DataPhaseInfo:    DP_NoDataOrDataIn,
+		OperationRequest: or,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	var data []byte
+	data1, err := c.WaitForRawPacketFromCommandDataSubscriber(resCh)
+	// fmt.Printf("data1 :%s", hex.Dump(data1))
+	for _, element := range data1 {
+		data = append(data, element)
+	}
+	data2, err := c.WaitForRawPacketFromCommandDataSubscriber(resCh)
+	// fmt.Printf("data2 :%s", hex.Dump(data2))
+	for _, element := range data2 {
+		data = append(data, element)
+	}
+	data3, err := c.WaitForRawPacketFromCommandDataSubscriber(resCh)
+	// fmt.Printf("data3 :%s", hex.Dump(data3))
+	for _, element := range data3 {
+		data = append(data, element)
+	}
+
+	return data2, err
+}
+
+func GenericSendData(c *Client, code ptp.OperationCode, params []uint32, dataSend []byte, dataLen uint64) ([]byte, error) {
+	tid := c.incrementTransactionId()
+
+	or := ptp.OperationRequest{
+		OperationCode: code,
+		TransactionID: tid,
+	}
+
+	if len(params) >= 1 {
+		or.Parameter1 = params[0]
+	}
+	if len(params) >= 2 {
+		or.Parameter2 = params[1]
+	}
+	if len(params) >= 3 {
+		or.Parameter3 = params[2]
+	}
+	if len(params) >= 4 {
+		or.Parameter4 = params[3]
+	}
+	if len(params) == 5 {
+		or.Parameter5 = params[4]
+	}
+	resCh := make(chan []byte, 2)
+	if err := c.subscribe(tid, resCh); err != nil {
+		return nil, err
+	}
+
+	err := c.SendPacketToCmdDataConn(&OperationRequestPacket{
+		DataPhaseInfo:    DP_DataOut,
+		OperationRequest: or,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = c.SendPacketToCmdDataConn(&StartDataPacket{
+		TransactionId:   tid,
+		TotalDataLength: dataLen,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = c.SendPacketToCmdDataConn(&EndDataPacket{
+		TransactionId: tid,
+		DataPayload:   dataSend,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := c.WaitForRawPacketFromCommandDataSubscriber(resCh)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, err
 }
 
 func GenericInitiateCapture(c *Client) ([]byte, error) {

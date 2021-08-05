@@ -3,6 +3,7 @@ package ip
 import (
 	"errors"
 	"fmt"
+
 	"github.com/google/uuid"
 	"github.com/malc0mn/ptp-ip/ip/internal"
 	"github.com/malc0mn/ptp-ip/ptp"
@@ -287,10 +288,15 @@ type EventPacket interface {
 	GetEventCode() ptp.EventCode
 }
 
+type EventParameters struct {
+	Parameter1 []byte
+}
+
 // GenericEventPacket is used to send PTP Events on the Event TCP connection. The events are used to inform the
 // Initiator about the Responder state change.
 type GenericEventPacket struct {
 	ptp.Event
+	Parameter1 []byte
 }
 
 func (ep *GenericEventPacket) PacketType() PacketType {
@@ -303,6 +309,10 @@ func (ep *GenericEventPacket) TotalFixedFieldSize() int {
 
 func (ep *GenericEventPacket) GetEventCode() ptp.EventCode {
 	return ep.EventCode
+}
+
+func (ep *GenericEventPacket) GetParameter1() []byte {
+	return ep.Parameter1
 }
 
 func NewEventPacket() EventPacket {
@@ -360,7 +370,9 @@ func (dp *DataPacket) TotalFixedFieldSize() int {
 // from the Initiator to the Responder.
 type EndDataPacket struct {
 	TransactionId ptp.TransactionID
-	DataPayload   interface{}
+	// DataPayload   interface{}
+	DataPayload []byte
+	// DataPayload []uint32
 }
 
 func (edp *EndDataPacket) PacketType() PacketType {

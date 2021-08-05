@@ -3,6 +3,7 @@ package ip
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -148,7 +149,7 @@ type Client struct {
 	connectionNumber uint32
 	transactionId    ptp.TransactionID
 	transactionIdMu  sync.Mutex
-	commandDataConn  net.Conn
+	CommandDataConn  net.Conn
 	eventConn        net.Conn
 	streamConn       net.Conn
 	initiator        *Initiator
@@ -157,7 +158,8 @@ type Client struct {
 	cmdDataChan      chan []byte
 	cmdDataSubs      map[ptp.TransactionID]chan<- []byte
 	cmdDataSubsMu    sync.Mutex
-	eventChan        chan EventPacket
+	EventChan        chan EventPacket
+	EventPayloadChan chan EventParameters
 	StreamChan       chan []byte
 	closeStreamChan  chan struct{}
 	Logger
@@ -320,9 +322,9 @@ func (c *Client) Close() error {
 		}
 	}
 
-	if c.commandDataConn != nil {
-		err = c.commandDataConn.Close()
-		c.commandDataConn = nil
+	if c.CommandDataConn != nil {
+		err = c.CommandDataConn.Close()
+		c.CommandDataConn = nil
 		if err != nil {
 			return err
 		}
@@ -333,7 +335,7 @@ func (c *Client) Close() error {
 
 // SendPacketToCmdDataConn sends a packet to the command/data connection.
 func (c *Client) SendPacketToCmdDataConn(p PacketOut) error {
-	return c.sendPacket(c.commandDataConn, p)
+	return c.sendPacket(c.CommandDataConn, p)
 }
 
 // SendPacketToEventConn sends a packet to the Event connection.
@@ -359,7 +361,6 @@ func (c *Client) sendPacket(w io.Writer, p PacketOut) error {
 	var headerPayload []byte
 	// An invalid packet type means it does not adhere to the PTP/IP standard, so we only send the length field here.
 	if p.PacketType() == PKT_Invalid {
-		// Send length only. The length must include the size of the length field, so we add 4 bytes for that!
 		if _, err := w.Write(internal.MarshalLittleEndian(uint32(pll + 4))); err != nil {
 			return err
 		}
@@ -369,24 +370,7 @@ func (c *Client) sendPacket(w io.Writer, p PacketOut) error {
 		for i := 0; i < len(h); i++ {
 			headerPayload = append(headerPayload, h[i])
 		}
-
-		// Send header.
-
-		// n, err := w.Write(h)
-		// if err != nil {
-		// 	return err
-		// }
-		// if n != HeaderSize {
-		// 	return fmt.Errorf(BytesWrittenMismatch, n, HeaderSize)
-		// }
-		// c.Debugf("[sendPacket] header bytes written %d", n)
-		// var dataStringHeader string
-		// for i := 0; i < len(h); i++ {
-		// 	dataStringHeader += fmt.Sprintf("%x ", h[i])
-		// }
-		// c.Debugf("[sendPacket] HEADER %s", dataStringHeader)
 	}
-
 	// Send payload.
 	if pll == 0 {
 		c.Debugf("[sendPacket] packet has no payload")
@@ -403,25 +387,24 @@ func (c *Client) sendPacket(w io.Writer, p PacketOut) error {
 	if n != pll {
 		return fmt.Errorf(BytesWrittenMismatch, n, pll)
 	}
-	c.Debugf("[sendPacket] payload bytes written %d", n)
-	// var pay string
+	// c.Debugf("[sendPacket] header %d payload bytes written %d", headerPayloadLen, n)
 
 	var dataString string
 	for i := 0; i < len(pl); i++ {
 		dataString += fmt.Sprintf("%x ", pl[i])
 	}
-	c.Debugf("[sendPacket] payload %s", dataString)
+	// c.Debugf("Send Packet: \n\r%s", hex.Dump(headerPayload))
 
 	return nil
 }
 
 // readRawFromCmdDataConn reads raw data from the command/data connection with a read timout of 30 seconds.
 func (c *Client) readRawFromCmdDataConn() ([]byte, error) {
-	if c.commandDataConn == nil {
+	if c.CommandDataConn == nil {
 		return nil, fmt.Errorf("connection lost")
 	}
-	c.commandDataConn.SetReadDeadline(time.Now().Add(DefaultReadTimeout))
-	return c.readRawResponse(c.commandDataConn)
+	c.CommandDataConn.SetReadDeadline(time.Now().Add(DefaultReadTimeout))
+	return c.readRawResponse(c.CommandDataConn)
 }
 
 // waitForRawFromCmdDataConn waits 30 seconds for a packet on the command/data connection.
@@ -436,11 +419,13 @@ func (c *Client) waitForRawFromCmdDataConn() ([]byte, error) {
 		case <-timeout:
 			wait = false
 			err = WaitForResponseError
+			fmt.Print("waitForRaw timeout")
 		default:
 			res, err = c.readRawFromCmdDataConn()
 			if err != io.EOF || res != nil {
 				wait = false
 			}
+
 			time.Sleep(20 * time.Millisecond)
 		}
 	}
@@ -455,11 +440,11 @@ func (c *Client) waitForRawFromCmdDataConn() ([]byte, error) {
 // When expecting a specific packet, you can pass it in, otherwise pass nil.
 // The byte array that is returned will contain any excess data that was not unmarshalled, empty otherwise.
 func (c *Client) readPacketFromCmdDataConn(p PacketIn) (PacketIn, []byte, error) {
-	if c.commandDataConn == nil {
+	if c.CommandDataConn == nil {
 		return nil, nil, ConnectionLostError
 	}
-	c.commandDataConn.SetReadDeadline(time.Now().Add(DefaultReadTimeout))
-	return c.readResponse(c.commandDataConn, p)
+	c.CommandDataConn.SetReadDeadline(time.Now().Add(DefaultReadTimeout))
+	return c.readResponse(c.CommandDataConn, p)
 }
 
 // waitForPacketFromCmdDataConn waits 30 seconds for a packet on the command/data connection.
@@ -534,7 +519,7 @@ func (c *Client) waitForPacketFromEventConn(p EventPacket) (PacketIn, []byte, er
 
 // ReadRawFromStreamConn reads raw data from the streamer connection with a read timout of 30 seconds.
 func (c *Client) ReadRawFromStreamConn() ([]byte, error) {
-	c.commandDataConn.SetReadDeadline(time.Now().Add(DefaultReadTimeout))
+	c.CommandDataConn.SetReadDeadline(time.Now().Add(DefaultReadTimeout))
 	return c.readRawResponse(c.streamConn)
 }
 
@@ -592,7 +577,6 @@ func (c *Client) readRawResponse(r io.Reader) ([]byte, error) {
 	if err := binary.Read(r, binary.LittleEndian, &l); err != nil {
 		return nil, err
 	}
-
 	len := binary.LittleEndian.Uint32(l)
 	b := make([]byte, int(len)-4)
 	if err := binary.Read(r, binary.LittleEndian, &b); err != nil {
@@ -633,22 +617,25 @@ func (c *Client) responseListener() {
 	c.Infof("%s subscribing response listener to command/data connection...", lmp)
 	for {
 		p, err := c.waitForRawFromCmdDataConn()
+
 		if err == nil {
 			tid, err := c.vendorExtensions.extractTransactionId(p, cmdDataConnection)
 			if err != nil {
+				fmt.Printf("Error extract\n")
 				c.Error(err)
 				continue
 			}
 			c.Debugf("%s publishing new response with length '%d' for transaction ID '%d'...", lmp, binary.LittleEndian.Uint32(p[0:4]), tid)
-
+			c.Debugf("HEX dump: %s", hex.Dump(p))
 			if _, ok := c.cmdDataSubs[tid]; !ok {
-				panic(fmt.Sprintf("No subscriber for transaction ID %d!", tid))
+				fmt.Printf("No subscriber for transaction ID %d!\n", tid)
 			}
 			c.cmdDataSubs[tid] <- p
 			continue
 		} else if err == WaitForResponseError || strings.Contains(err.Error(), "i/o timeout") {
 			continue
 		}
+		fmt.Printf("%s message listener stopped: %s\n", lmp, err)
 		c.Errorf("%s message listener stopped: %s", lmp, err)
 		return
 	}
@@ -657,7 +644,7 @@ func (c *Client) responseListener() {
 func (c *Client) initCommandDataConn() error {
 	var err error
 
-	c.commandDataConn, err = internal.RetryDialer(c.Network(), c.CommandDataAddress(), DefaultDialTimeout)
+	c.CommandDataConn, err = internal.RetryDialer(c.Network(), c.CommandDataAddress(), DefaultDialTimeout)
 	if err != nil {
 		return err
 	}
@@ -712,22 +699,25 @@ func (c *Client) newCmdDataInitPacket() InitCommandRequestPacket {
 	return c.vendorExtensions.newCmdDataInitPacket(c.InitiatorGUID(), c.InitiatorFriendlyName())
 }
 
-// TODO: refactor this one to work exactly like the responseListener!
 func (c *Client) initEventConn() error {
 	if err := c.vendorExtensions.eventInit(c); err != nil {
 		return fmt.Errorf("event connection error: %s", err)
 	}
-
 	lmp := "[eventListener]"
-	c.eventChan = make(chan EventPacket, 10)
+	c.EventChan = make(chan EventPacket, 20)
+	c.EventPayloadChan = make(chan EventParameters, 20)
 	go func() {
 		c.Infof("%s subscribing event listener to event connection...", lmp)
 		for {
 			p := c.vendorExtensions.newEventPacket()
-			_, _, err := c.waitForPacketFromEventConn(p)
+			_, payload, err := c.waitForPacketFromEventConn(p)
+			payloadStruct := EventParameters{
+				Parameter1: payload,
+			}
 			if err == nil {
-				c.Debugf("%s publishing new event '%#x' to event channel...", lmp, p.GetEventCode())
-				c.eventChan <- p
+				// c.Debugf("%s hex dump : %s", lmp, hex.Dump(payload))
+				c.EventChan <- p
+				c.EventPayloadChan <- payloadStruct
 				continue
 			} else if err == WaitForEventError || strings.Contains(err.Error(), "i/o timeout") {
 				continue
@@ -780,7 +770,7 @@ func (c *Client) configureTcpConn(t connectionType) {
 
 	switch t {
 	case cmdDataConnection:
-		conn = c.commandDataConn
+		conn = c.CommandDataConn
 	case eventConnection:
 		conn = c.eventConn
 	case streamConnection:
@@ -853,8 +843,16 @@ func (c *Client) SetDeviceProperty(code ptp.DevicePropCode, val uint32) error {
 
 // OperationRequestRaw allows to perform any operation request and returns the raw result intended for reverse
 // engineering purposes.
-func (c *Client) OperationRequestRaw(code ptp.OperationCode, params []uint32) ([][]byte, error) {
+func (c *Client) OperationRequestRaw(code ptp.OperationCode, params []uint32) ([]byte, error) {
 	return c.vendorExtensions.operationRequestRaw(c, code, params)
+}
+
+func (c *Client) SendData(code ptp.OperationCode, params []uint32, dataSend []byte, len uint64) ([]byte, error) {
+	return c.vendorExtensions.sendData(c, code, params, dataSend, len)
+}
+
+func (c *Client) OperationRequestDataRaw(code ptp.OperationCode, params []uint32) ([]byte, error) {
+	return c.vendorExtensions.operationDataRequestRaw(c, code, params)
 }
 
 // InitiateCapture releases the shutter and captures an image. If the responder supports it, a preview of the captured

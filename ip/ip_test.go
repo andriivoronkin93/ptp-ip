@@ -3,9 +3,10 @@ package ip
 import (
 	"bytes"
 	"fmt"
+	"testing"
+
 	"github.com/google/uuid"
 	"github.com/malc0mn/ptp-ip/ptp"
-	"testing"
 )
 
 func TestNewDefaultInitiator(t *testing.T) {
@@ -70,8 +71,8 @@ func TestNewClient(t *testing.T) {
 	if err != nil {
 		t.Errorf("NewClient() err = %s; want <nil>", err)
 	}
-	if got.commandDataConn != nil {
-		t.Errorf("NewClient() commandDataConn = %v; want <nil>", got.commandDataConn)
+	if got.CommandDataConn != nil {
+		t.Errorf("NewClient() commandDataConn = %v; want <nil>", got.CommandDataConn)
 	}
 	if got.eventConn != nil {
 		t.Errorf("NewClient() eventConn = %v; want <nil>", got.eventConn)
