@@ -21,8 +21,8 @@ import (
 
 const (
 	DefaultVendor         string         = "generic"
-	DefaultDialTimeout                   = 10 * time.Second
-	DefaultReadTimeout                   = 30 * time.Second
+	DefaultDialTimeout                   = 2 * time.Second
+	DefaultReadTimeout                   = 1 * time.Second
 	DefaultPort           uint16         = 15740
 	DefaultIpAddress      string         = "192.168.0.1"
 	InitiatorFriendlyName string         = "Golang PTP/IP client"
@@ -652,6 +652,7 @@ func (c *Client) responseListener() {
 		}
 		fmt.Printf("%s message listener stopped: %s\n", lmp, err)
 		c.Errorf("%s message listener stopped: %s", lmp, err)
+		c.Close()
 		return
 	}
 }
