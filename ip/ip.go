@@ -432,9 +432,9 @@ func (c *Client) waitForRawFromCmdDataConn() ([]byte, error) {
 	for wait, timeout := true, time.After(DefaultReadTimeout); wait; {
 		select {
 		case <-timeout:
-			wait = false
-			err = WaitForResponseError
-			fmt.Print("waitForRaw timeout")
+			// wait = false
+			// err = WaitForResponseError
+			// fmt.Print("waitForRaw timeout new")
 		default:
 			res, err = c.readRawFromCmdDataConn()
 			if err != io.EOF || res != nil {
