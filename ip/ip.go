@@ -629,7 +629,7 @@ func (c *Client) unsubscribe(tid ptp.TransactionID) {
 func (c *Client) responseListener() {
 	c.cmdDataChan = make(chan []byte, 10)
 	lmp := "[responseListener]"
-	c.Infof("%s subscribing response listener to command/data connection...", lmp)
+	c.Debugf("%s subscribing response listener to command/data connection...", lmp)
 	for {
 		p, err := c.waitForRawFromCmdDataConn()
 
@@ -723,7 +723,7 @@ func (c *Client) initEventConn() error {
 	c.EventChan = make(chan EventPacket, 20)
 	c.EventPayloadChan = make(chan EventParameters, 20)
 	go func() {
-		c.Infof("%s subscribing event listener to event connection...", lmp)
+		c.Debugf("%s subscribing event listener to event connection...", lmp)
 		for {
 			p := c.vendorExtensions.newEventPacket()
 			_, payload, err := c.waitForPacketFromEventConn(p)
@@ -797,7 +797,7 @@ func (c *Client) configureTcpConn(t connectionType) {
 	if err := conn.(*net.TCPConn).SetKeepAlive(true); err != nil {
 		c.Warnf("TCP_KEEPALIVE not enabled for %s connection: %s", t, err)
 	} else {
-		c.Infof("TCP_KEEPALIVE enabled for %s connection", t)
+		c.Debugf("TCP_KEEPALIVE enabled for %s connection", t)
 	}
 
 	// The PTP/IP protocol specifically asks to disable Nagle's algorithm. TCP_NODELAY SHOULD be enabled by default in
@@ -805,7 +805,7 @@ func (c *Client) configureTcpConn(t connectionType) {
 	if err := conn.(*net.TCPConn).SetNoDelay(true); err != nil {
 		c.Warnf("TCP_NODELAY not enabled for %s connection: %s", t, err)
 	} else {
-		c.Infof("TCP_NODELAY enabled for %s connection", t)
+		c.Debugf("TCP_NODELAY enabled for %s connection", t)
 	}
 }
 
