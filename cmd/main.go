@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -62,7 +63,7 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-sigs
-		// fmt.Printf("Received signal %s, shutting down...\n", sig)
+		log.Printf("Received signal %s, shutting down...\n", sig)
 		close(quit)
 	}()
 
