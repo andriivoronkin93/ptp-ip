@@ -636,21 +636,21 @@ func (c *Client) responseListener() {
 		if err == nil {
 			tid, err := c.vendorExtensions.extractTransactionId(p, cmdDataConnection)
 			if err != nil {
-				fmt.Printf("Error extract\n")
+				// fmt.Printf("Error extract\n")
 				c.Error(err)
 				continue
 			}
 			c.Debugf("%s publishing new response with length '%d' for transaction ID '%d'...", lmp, binary.LittleEndian.Uint32(p[0:4]), tid)
 			c.Debugf("HEX dump: %s", hex.Dump(p))
 			if _, ok := c.cmdDataSubs[tid]; !ok {
-				fmt.Printf("No subscriber for transaction ID %d!\n", tid)
+				// fmt.Printf("No subscriber for transaction ID %d!\n", tid)
 			}
 			c.cmdDataSubs[tid] <- p
 			continue
 		} else if err == WaitForResponseError || strings.Contains(err.Error(), "i/o timeout") {
 			continue
 		}
-		fmt.Printf("%s message listener stopped: %s\n", lmp, err)
+		// fmt.Printf("%s message listener stopped: %s\n", lmp, err)
 		c.Errorf("%s message listener stopped: %s", lmp, err)
 		c.Close()
 		return

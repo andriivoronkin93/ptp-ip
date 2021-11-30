@@ -3,11 +3,12 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"github.com/malc0mn/ptp-ip/ip"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
+
+	"github.com/malc0mn/ptp-ip/ip"
 )
 
 const (
@@ -41,7 +42,7 @@ func main() {
 	}
 
 	if showVersion {
-		fmt.Printf("%s version %s built on %s\n", exe, version, buildTime)
+		// fmt.Printf("%s version %s built on %s\n", exe, version, buildTime)
 		os.Exit(ok)
 	}
 
@@ -61,7 +62,7 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-sigs
-		fmt.Printf("Received signal %s, shutting down...\n", sig)
+		// fmt.Printf("Received signal %s, shutting down...\n", sig)
 		close(quit)
 	}()
 
@@ -82,8 +83,8 @@ func main() {
 		client.SetStreamerPort(uint16(conf.sport))
 	}
 
-	fmt.Printf("Created new client with name '%s' and GUID '%s'.\n", client.InitiatorFriendlyName(), client.InitiatorGUIDAsString())
-	fmt.Printf("Attempting to connect to %s\n", client.CommandDataAddress())
+	// fmt.Printf("Created new client with name '%s' and GUID '%s'.\n", client.InitiatorFriendlyName(), client.InitiatorGUIDAsString())
+	// fmt.Printf("Attempting to connect to %s\n", client.CommandDataAddress())
 	err = client.Dial()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error connecting to responder - %s\n", err)
