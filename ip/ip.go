@@ -329,12 +329,19 @@ func (c *Client) Close() error {
 
 	// TODO: add a closeEventConn() method so we can properly shut down the event channel like we do with the streamer.
 	if c.eventConn != nil {
-		err = c.eventConn.Close()
-		c.eventConn = nil
+		err = c.closeEventConn()
 		if err != nil {
 			return err
 		}
 	}
+
+	// if c.eventConn != nil {
+	// 	err = c.eventConn.Close()
+	// 	c.eventConn = nil
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	if c.CommandDataConn != nil {
 		err = c.CommandDataConn.Close()
@@ -777,6 +784,17 @@ func (c *Client) closeStreamConn() error {
 
 	err := c.streamConn.Close()
 	c.streamConn = nil
+
+	return err
+}
+
+func (c *Client) closeEventConn() error {
+	if c.EventChan != nil {
+		close(c.EventPayloadChan)
+	}
+
+	err := c.eventConn.Close()
+	c.eventConn = nil
 
 	return err
 }
