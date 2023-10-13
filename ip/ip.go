@@ -546,8 +546,9 @@ func (c *Client) ReadRawFromStreamConn() ([]byte, error) {
 }
 
 // TODO: this must be refactored to work like the events: continuously read and push to a channel in such a way that we
-//  do not mix up packets (use transaction ID properly) like what's happening now with liveview polling the camera state
-//  every second.
+//
+//	do not mix up packets (use transaction ID properly) like what's happening now with liveview polling the camera state
+//	every second.
 func (c *Client) readResponse(r io.Reader, p PacketIn) (PacketIn, []byte, error) {
 	var err error
 	var h Header
@@ -590,8 +591,10 @@ func (c *Client) readResponse(r io.Reader, p PacketIn) (PacketIn, []byte, error)
 }
 
 // TODO: this must be refactored to work like the events: continuously read and push to a channel in such a way that we
-//  do not mix up packets (use transaction ID properly) like what's happening now with liveview polling the camera state
-//  every second.
+//
+//	do not mix up packets (use transaction ID properly) like what's happening now with liveview polling the camera state
+//	every second.
+//
 // The reading approach taken here is so that we can return the full raw data but still reliably read the complete
 // expected data length.
 func (c *Client) readRawResponse(r io.Reader) ([]byte, error) {
@@ -649,9 +652,6 @@ func (c *Client) responseListener() {
 			}
 			c.Debugf("%s publishing new response with length '%d' for transaction ID '%d'...", lmp, binary.LittleEndian.Uint32(p[0:4]), tid)
 			c.Debugf("HEX dump: %s", hex.Dump(p))
-			if _, ok := c.cmdDataSubs[tid]; !ok {
-				// fmt.Printf("No subscriber for transaction ID %d!\n", tid)
-			}
 			c.cmdDataSubs[tid] <- p
 			continue
 		} else if err == WaitForResponseError || strings.Contains(err.Error(), "i/o timeout") {
