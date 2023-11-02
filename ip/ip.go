@@ -652,7 +652,9 @@ func (c *Client) responseListener() {
 			}
 			c.Debugf("%s publishing new response with length '%d' for transaction ID '%d'...", lmp, binary.LittleEndian.Uint32(p[0:4]), tid)
 			c.Debugf("HEX dump: %s", hex.Dump(p))
+			c.cmdDataSubsMu.Lock()
 			c.cmdDataSubs[tid] <- p
+			c.cmdDataSubsMu.Unlock()
 			continue
 		} else if err == WaitForResponseError || strings.Contains(err.Error(), "i/o timeout") {
 			continue
