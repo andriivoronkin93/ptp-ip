@@ -21,8 +21,8 @@ import (
 
 const (
 	DefaultVendor         string         = "generic"
-	DefaultDialTimeout                   = 2 * time.Second
-	DefaultReadTimeout                   = 1 * time.Second
+	DefaultDialTimeout                   = 3 * time.Second
+	DefaultReadTimeout                   = 5 * time.Second
 	DefaultPort           uint16         = 15740
 	DefaultIpAddress      string         = "192.168.0.1"
 	InitiatorFriendlyName string         = "Golang PTP/IP client"
